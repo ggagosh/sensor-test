@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensor Data Prediction Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/simple-statistics@7.8.3/dist/simple-statistics.min.js"></script>
     <style>
@@ -262,6 +263,11 @@
                     <input type="number" id="polynomialDegree" value="3" min="1" max="6">
                 </div>
 
+                <div class="control-group">
+                    <label for="futureDays">Future Prediction Days</label>
+                    <input type="number" id="futureDays" value="30" min="1" max="60">
+                </div>
+
                 <button class="btn" onclick="generateSampleData()">Generate Sample Data</button>
                 <button class="btn btn-secondary" onclick="runPredictions()">Run Predictions</button>
                 <button class="btn btn-secondary" onclick="downloadTemplate()">Download CSV Template</button>
@@ -291,6 +297,10 @@
                     <div class="legend-item">
                         <div class="legend-color" style="background-color: #9b59b6;"></div>
                         <span>ARIMA-like</span>
+                    </div>
+                    <div class="legend-item" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                        <div class="legend-color" style="background: linear-gradient(90deg, #333 50%, transparent 50%); background-size: 10px 2px;"></div>
+                        <span>Future Predictions</span>
                     </div>
                 </div>
             </div>
@@ -348,6 +358,7 @@
         let sensorData = [];
         let hourlyData = [];
         let predictions = {};
+        let futurePredictions = {};
         let chart = null;
         let errorChart = null;
         let activeAlgorithms = ['all'];
@@ -373,6 +384,24 @@
                         },
                         legend: {
                             display: true
+                        },
+                        annotation: {
+                            annotations: {
+                                predictionLine: {
+                                    type: 'line',
+                                    scaleID: 'x',
+                                    value: 0, // Will be updated dynamically
+                                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                                    borderWidth: 2,
+                                    borderDash: [10, 5],
+                                    label: {
+                                        content: 'Future Predictions →',
+                                        enabled: true,
+                                        position: 'start',
+                                        yAdjust: -20
+                                    }
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -487,9 +516,9 @@
             
             if (selectedType === 'hourly' || selectedType === 'mixed') {
                 // Generate hourly data
-                const hours = 24 * 30; // 30 days of hourly data
+                const hours = 24 * 15; // 15 days of hourly data (to get ~30 days after aggregation)
                 const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 30);
+                startDate.setDate(startDate.getDate() - 15);
                 
                 for (let i = 0; i < hours; i++) {
                     const date = new Date(startDate);
@@ -528,7 +557,7 @@
             
             if (selectedType === 'daily' || selectedType === 'mixed') {
                 // Generate daily data
-                const days = selectedType === 'mixed' ? 30 : 60;
+                const days = selectedType === 'mixed' ? 15 : 30; // Generate 30 days for 50/50 split
                 const startDate = new Date();
                 startDate.setDate(startDate.getDate() - days);
                 
@@ -554,6 +583,11 @@
             
             // Process the data
             sensorData = processData(rawData);
+            
+            // Auto-set future days to match data length for 50/50 split
+            const dataLength = sensorData.length;
+            document.getElementById('futureDays').value = dataLength;
+            
             runPredictions();
         }
 
@@ -577,7 +611,7 @@
             const y = data.map(d => d.value);
             const regression = ss.linearRegression([x, y]);
             const line = ss.linearRegressionLine(regression);
-            return x.map(xi => line(xi));
+            return { values: x.map(xi => line(xi)), model: line };
         }
 
         function exponentialSmoothing(data, alpha) {
@@ -614,7 +648,7 @@
                 result.push(pred);
             }
             
-            return result;
+            return { values: result, coeffs: coeffs };
         }
 
         function fitPolynomial(x, y, degree) {
@@ -676,7 +710,10 @@
                 result.push(result[i] + maDiff[i]);
             }
             
-            return result;
+            // Store average difference for future predictions
+            const avgDiff = maDiff.length > 0 ? maDiff.slice(-5).reduce((a, b) => a + b) / Math.min(5, maDiff.length) : 0;
+            
+            return { values: result, avgDiff: avgDiff };
         }
 
         // Run all predictions
@@ -689,23 +726,124 @@
             const windowSize = parseInt(document.getElementById('windowSize').value);
             const smoothingFactor = parseFloat(document.getElementById('smoothingFactor').value);
             const polynomialDegree = parseInt(document.getElementById('polynomialDegree').value);
+            const futureDays = parseInt(document.getElementById('futureDays').value);
 
+            const maResult = movingAverage(sensorData, windowSize);
+            const linearResult = linearRegression(sensorData);
+            const esResult = exponentialSmoothing(sensorData, smoothingFactor);
+            const polyResult = polynomialRegression(sensorData, polynomialDegree);
+            const arimaResult = arimaLike(sensorData);
+            
             predictions = {
-                movingAverage: movingAverage(sensorData, windowSize),
-                linearRegression: linearRegression(sensorData),
-                exponentialSmoothing: exponentialSmoothing(sensorData, smoothingFactor),
-                polynomial: polynomialRegression(sensorData, polynomialDegree),
-                arima: arimaLike(sensorData)
+                movingAverage: maResult,
+                linearRegression: linearResult.values,
+                exponentialSmoothing: esResult,
+                polynomial: polyResult.values,
+                arima: arimaResult.values,
+                // Store models for future predictions
+                models: {
+                    linear: linearResult.model,
+                    polynomial: polyResult.coeffs,
+                    arima: arimaResult.avgDiff
+                }
             };
+
+            // Generate future predictions
+            generateFuturePredictions(futureDays, windowSize, smoothingFactor, polynomialDegree);
 
             updateCharts();
             calculateMetrics();
         }
 
+        // Generate future predictions
+        function generateFuturePredictions(futureDays, windowSize, smoothingFactor, polynomialDegree) {
+            if (!sensorData.length || !predictions.models) return;
+            
+            const lastDate = new Date(sensorData[sensorData.length - 1].date);
+            const lastIndex = sensorData.length - 1;
+            const lastValue = sensorData[sensorData.length - 1].value;
+            
+            futurePredictions = {
+                dates: [],
+                movingAverage: [],
+                linearRegression: [],
+                exponentialSmoothing: [],
+                polynomial: [],
+                arima: []
+            };
+            
+            // Generate future dates
+            for (let i = 1; i <= futureDays; i++) {
+                const futureDate = new Date(lastDate);
+                futureDate.setDate(futureDate.getDate() + i);
+                futurePredictions.dates.push(futureDate.toISOString().split('T')[0]);
+            }
+            
+            // Moving Average - use last windowSize values to predict
+            const lastWindowValues = sensorData.slice(-windowSize).map(d => d.value);
+            let maLastValue = lastWindowValues.reduce((a, b) => a + b) / windowSize;
+            for (let i = 0; i < futureDays; i++) {
+                futurePredictions.movingAverage.push(maLastValue);
+                // Gradually decay towards mean
+                const mean = sensorData.map(d => d.value).reduce((a, b) => a + b) / sensorData.length;
+                maLastValue = maLastValue * 0.95 + mean * 0.05;
+            }
+            
+            // Linear Regression - use the model
+            if (predictions.models.linear) {
+                for (let i = 0; i < futureDays; i++) {
+                    const futureIndex = lastIndex + i + 1;
+                    futurePredictions.linearRegression.push(predictions.models.linear(futureIndex));
+                }
+            }
+            
+            // Exponential Smoothing - continue from last smoothed value
+            if (predictions.exponentialSmoothing && predictions.exponentialSmoothing.length > 0) {
+                let esLastValue = predictions.exponentialSmoothing[predictions.exponentialSmoothing.length - 1];
+                for (let i = 0; i < futureDays; i++) {
+                    // Use trend from last few values
+                    const lastIdx = predictions.exponentialSmoothing.length - 1;
+                    const trend = lastIdx >= 2 ? 
+                        (predictions.exponentialSmoothing[lastIdx] - 
+                         predictions.exponentialSmoothing[Math.max(0, lastIdx - 2)]) / 2 : 0;
+                    esLastValue += trend * 0.5;
+                    futurePredictions.exponentialSmoothing.push(esLastValue);
+                }
+            }
+            
+            // Polynomial Regression - use the coefficients
+            if (predictions.models.polynomial) {
+                for (let i = 0; i < futureDays; i++) {
+                    const futureIndex = lastIndex + i + 1;
+                    let pred = 0;
+                    for (let d = 0; d < predictions.models.polynomial.length; d++) {
+                        pred += predictions.models.polynomial[d] * Math.pow(futureIndex, d);
+                    }
+                    futurePredictions.polynomial.push(pred);
+                }
+            }
+            
+            // ARIMA-like - use average difference
+            if (predictions.arima && predictions.arima.length > 0 && predictions.models.arima !== undefined) {
+                let arimaLastValue = predictions.arima[predictions.arima.length - 1];
+                for (let i = 0; i < futureDays; i++) {
+                    arimaLastValue += predictions.models.arima;
+                    futurePredictions.arima.push(arimaLastValue);
+                }
+            }
+        }
+
         // Update charts
         function updateCharts() {
-            const labels = sensorData.map(d => d.date);
-            const actualValues = sensorData.map(d => d.value);
+            const labels = [...sensorData.map(d => d.date)];
+            const actualValues = [...sensorData.map(d => d.value)];
+            
+            // Add future dates to labels
+            if (futurePredictions.dates) {
+                labels.push(...futurePredictions.dates);
+                // Pad actual values with null for future dates
+                actualValues.push(...new Array(futurePredictions.dates.length).fill(null));
+            }
 
             const datasets = [{
                 label: 'Actual Data',
@@ -713,7 +851,8 @@
                 borderColor: '#333',
                 backgroundColor: 'rgba(51, 51, 51, 0.1)',
                 borderWidth: 2,
-                pointRadius: 3
+                pointRadius: 3,
+                spanGaps: false
             }];
 
             const algorithmConfigs = {
@@ -725,21 +864,48 @@
             };
 
             Object.entries(predictions).forEach(([algo, values]) => {
+                if (algo === 'models') return; // Skip models object
+                
                 if (activeAlgorithms.includes('all') || activeAlgorithms.includes(algo)) {
+                    // Combine historical predictions with future predictions
+                    const combinedData = Array.isArray(values) ? [...values] : [];
+                    if (futurePredictions[algo] && Array.isArray(futurePredictions[algo])) {
+                        combinedData.push(...futurePredictions[algo]);
+                    }
+                    
                     datasets.push({
                         label: algorithmConfigs[algo].label,
-                        data: values,
+                        data: combinedData,
                         borderColor: algorithmConfigs[algo].color,
                         backgroundColor: algorithmConfigs[algo].color + '20',
                         borderWidth: 2,
                         pointRadius: 0,
-                        tension: 0.1
+                        tension: 0.1,
+                        // Add dashed line for future predictions
+                        segment: {
+                            borderDash: (ctx) => {
+                                // Make future predictions dashed
+                                if (ctx.p0.parsed.x >= sensorData.length - 1) {
+                                    return [5, 5];
+                                }
+                                return undefined;
+                            }
+                        }
                     });
                 }
             });
 
             chart.data.labels = labels;
             chart.data.datasets = datasets;
+            
+            // Update prediction line annotation
+            if (futurePredictions.dates && futurePredictions.dates.length > 0) {
+                chart.options.plugins.annotation.annotations.predictionLine.value = sensorData.length - 0.5;
+                chart.options.plugins.annotation.annotations.predictionLine.display = true;
+            } else {
+                chart.options.plugins.annotation.annotations.predictionLine.display = false;
+            }
+            
             chart.update();
 
             // Update error chart
@@ -753,11 +919,13 @@
             const labels = [];
 
             Object.entries(predictions).forEach(([algo, predValues]) => {
+                if (algo === 'models' || !Array.isArray(predValues)) return; // Skip models object and non-arrays
+                
                 let mae = 0;
                 let count = 0;
                 
-                for (let i = 0; i < actualValues.length; i++) {
-                    if (predValues[i] !== null) {
+                for (let i = 0; i < sensorData.length; i++) {
+                    if (i < predValues.length && predValues[i] !== null && actualValues[i] !== null) {
                         mae += Math.abs(actualValues[i] - predValues[i]);
                         count++;
                     }
@@ -785,7 +953,9 @@
             metricsGrid.innerHTML = '';
 
             Object.entries(predictions).forEach(([algo, predValues]) => {
-                const metrics = calculateAlgorithmMetrics(actualValues, predValues);
+                if (algo === 'models') return; // Skip models object
+                
+                const metrics = calculateAlgorithmMetrics(sensorData.map(d => d.value), predValues);
                 
                 const card = document.createElement('div');
                 card.className = 'metric-card';
