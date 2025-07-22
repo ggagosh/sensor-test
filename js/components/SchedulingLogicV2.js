@@ -109,17 +109,45 @@ export class SchedulingLogic {
     determineBaseDate(params) {
         const { definitionStartDate, context, calendarConfig } = params;
         
-        // If we have a last completed task, use that as base
+        // Collect all available dates with their sources
+        const availableDates = [];
+        
+        // Add last completed task date if exists
         if (context.lastCompletedTaskDate) {
-            return context.lastCompletedTaskDate;
+            availableDates.push({ 
+                date: context.lastCompletedTaskDate, 
+                source: 'Last Completed Task' 
+            });
         }
         
-        // Otherwise use definition start date
+        // Add definition start date if exists
         if (definitionStartDate) {
-            return definitionStartDate;
+            availableDates.push({ 
+                date: definitionStartDate, 
+                source: 'Task Starting Date' 
+            });
+        }
+        
+        // Add period change date if exists
+        if (context.periodChangeDate) {
+            availableDates.push({ 
+                date: context.periodChangeDate, 
+                source: 'Equipment Period Change' 
+            });
+        }
+        
+        // If we have any dates, use the most recent one
+        if (availableDates.length > 0) {
+            const selected = availableDates.reduce((max, current) => 
+                current.date > max.date ? current : max
+            );
+            // Store the selection info for UI update
+            this.lastBaseDateInfo = selected;
+            return selected.date;
         }
         
         // Fallback to current date
+        this.lastBaseDateInfo = { date: new Date(), source: null };
         return new Date();
     }
 
@@ -390,8 +418,10 @@ export class SchedulingLogic {
         return result;
     }
 
-    maxDate(date1, date2) {
-        return date1 > date2 ? date1 : date2;
+    maxDate(...dates) {
+        if (dates.length === 0) return null;
+        if (dates.length === 1) return dates[0];
+        return dates.reduce((max, date) => date > max ? date : max);
     }
 
     isAfter(date1, date2) {

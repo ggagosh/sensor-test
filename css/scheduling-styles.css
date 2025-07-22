@@ -385,6 +385,25 @@ h3 {
     pointer-events: none;
 }
 
+/* Updating indicator */
+.updating-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--secondary-blue);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.updating-indicator.show {
+    display: block;
+}
+
 /* Chart controls */
 .chart-controls {
     display: flex;
@@ -503,4 +522,13 @@ header h1 {
     padding: 10px 16px;
     font-size: 14px;
     margin-top: 15px;
+}
+
+/* Starting point highlight */
+.control-item.date-used {
+    border-left: 3px solid var(--secondary-blue);
+    padding-left: 10px;
+    background: var(--light-blue);
+    border-radius: 4px;
+    margin-left: -10px;
 }

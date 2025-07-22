@@ -26,21 +26,45 @@ export class SchedulingApp {
     }
 
     updateSchedule(settings, isSimulation = false) {
-        // Generate task series
-        const tasks = this.schedulingLogic.generateTaskSeries(settings, settings.displaySettings.numberOfTasks);
+        // Show updating indicator
+        const indicator = document.getElementById('updating-indicator');
+        if (indicator) {
+            indicator.classList.add('show');
+        }
         
-        // Update completed task position
-        this.visualizer.setCompletedTaskPosition(settings.displaySettings.completedTaskPosition);
-        
-        // Update visualization
-        this.visualizer.updateVisualization(tasks, new Date(), settings.context.lastCompletedTaskDate);
-        
-        // Update schedule details
-        const detailsContainer = document.getElementById('schedule-details');
-        this.visualizer.renderScheduleDetails(tasks, detailsContainer);
-        
-        // Update logic explanation
-        this.updateLogicExplanation(settings, tasks, isSimulation);
+        // Use setTimeout to ensure the indicator shows before heavy computation
+        setTimeout(() => {
+            // Generate task series
+            const tasks = this.schedulingLogic.generateTaskSeries(settings, settings.displaySettings.numberOfTasks);
+            
+            // Update completed task position
+            this.visualizer.setCompletedTaskPosition(settings.displaySettings.completedTaskPosition);
+            
+            // Update visualization
+            this.visualizer.updateVisualization(tasks, new Date(), settings.context.lastCompletedTaskDate);
+            
+            // Update schedule details
+            const detailsContainer = document.getElementById('schedule-details');
+            this.visualizer.renderScheduleDetails(tasks, detailsContainer);
+            
+            // Update logic explanation
+            this.updateLogicExplanation(settings, tasks, isSimulation);
+            
+            // Update calculated starting point display
+            if (this.schedulingLogic.lastBaseDateInfo) {
+                this.controls.updateCalculatedStartingPoint(
+                    this.schedulingLogic.lastBaseDateInfo.date,
+                    this.schedulingLogic.lastBaseDateInfo.source
+                );
+            }
+            
+            // Hide updating indicator
+            if (indicator) {
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 100);
+            }
+        }, 10);
     }
 
     updateLogicExplanation(settings, tasks, isSimulation) {

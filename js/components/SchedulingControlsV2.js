@@ -7,38 +7,39 @@ export class SchedulingControls {
 
     getDefaultSettings() {
         const today = new Date();
-        const threeMonthsAgo = new Date(today);
-        threeMonthsAgo.setMonth(today.getMonth() - 3);
+        const oneMonthAgo = new Date(today);
+        oneMonthAgo.setMonth(today.getMonth() - 1);
         
         return {
-            isFloating: false,
+            isFloating: false, // Fixed intervals by default
             triggers: {
                 calendar: true,
-                sensor: true,
-                isCoexisting: true
+                sensor: false,
+                isCoexisting: false // First wins by default
             },
-            definitionStartDate: threeMonthsAgo,
+            definitionStartDate: oneMonthAgo,
             calendarConfig: {
-                isRepeating: true,
+                isRepeating: true, // Every (not once)
                 repeatEvery: 1,
                 interval: 'month',
                 scheduleFirstFromInterval: false
             },
             sensorConfig: {
-                isOnce: false,
-                triggerValue: 500,
-                preventive: true
+                isOnce: false, // Every (not once)
+                triggerValue: 500, // 500 running hours
+                preventive: true // Preventive on by default
             },
             context: {
-                lastCompletedTaskDate: threeMonthsAgo,
-                lastSensorValue: 2500,
-                lastSensorDate: today,
-                averageSensorRate: 24, // hours per day
-                lastMaintenanceValue: 0 // Value at last maintenance
+                lastCompletedTaskDate: null, // No last completed task initially
+                lastSensorValue: 100, // Current sensor value
+                lastSensorDate: oneMonthAgo, // Last sensor update
+                averageSensorRate: 10, // 10 hours per day average
+                lastMaintenanceValue: 0, // Value at last maintenance
+                periodChangeDate: null // Equipment period change date
             },
             displaySettings: {
-                numberOfTasks: 30,
-                completedTaskPosition: 3
+                numberOfTasks: 20,
+                completedTaskPosition: 3 // Separate track
             }
         };
     }
@@ -48,6 +49,9 @@ export class SchedulingControls {
         this.render();
         this.renderSimulation();
         this.attachEventListeners();
+        
+        // Set initial calculated starting point
+        this.updateCalculatedStartingPoint(null, null);
     }
 
     render() {
@@ -83,9 +87,9 @@ export class SchedulingControls {
                 <div class="control-item" id="coexisting-container" style="${this.currentSettings.triggers.calendar && this.currentSettings.triggers.sensor ? '' : 'display: none'}">
                     <label>
                         <input type="checkbox" id="is-coexisting" ${this.currentSettings.triggers.isCoexisting ? 'checked' : ''}>
-                        Coexisting (Both triggers run independently)
+                        Both triggers at same time
                     </label>
-                    <small>When unchecked: First trigger wins</small>
+                    <small>When unchecked: First trigger schedules the task</small>
                 </div>
             </div>
 
@@ -144,17 +148,26 @@ export class SchedulingControls {
                 <div class="control-item">
                     <label>
                         <input type="checkbox" id="sensor-preventive" ${this.currentSettings.sensorConfig.preventive ? 'checked' : ''}>
-                        Preventive Mode
+                        Preventive
                     </label>
-                    <small>Always schedule future dates based on average</small>
+                    <small>On: Always schedule future dates | Off: Only when threshold reached</small>
                 </div>
             </div>
 
             <div class="control-group">
-                <h3>Context Data</h3>
+                <h3>Starting Point Data</h3>
+                <div class="control-item" style="background: var(--light-blue); padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                    <label style="font-weight: 600; color: var(--primary-blue);">Calculated Starting Point:</label>
+                    <div id="calculated-starting-point" style="font-size: 14px; margin-top: 5px;">
+                        <span id="starting-point-date">-</span>
+                        <small id="starting-point-source" style="display: block; margin-top: 3px; color: var(--gray-700);"></small>
+                    </div>
+                    <small style="display: block; margin-top: 5px;">System automatically uses the most recent date from available options</small>
+                </div>
                 <div class="control-item">
-                    <label>Last Completed Task:</label>
+                    <label>Last Completed Task Date:</label>
                     <input type="date" id="last-completed-date" value="${this.formatDateForInput(this.currentSettings.context.lastCompletedTaskDate)}">
+                    <small>Date when the last task was completed</small>
                 </div>
                 <div class="control-item">
                     <label>Last Sensor Value:</label>
@@ -172,6 +185,10 @@ export class SchedulingControls {
                     <label>Last Maintenance Value:</label>
                     <input type="number" id="last-maintenance-value" value="${this.currentSettings.context.lastMaintenanceValue}" min="0" placeholder="Sensor value at last maintenance">
                 </div>
+                <div class="control-item">
+                    <label>Equipment Period Change Date:</label>
+                    <input type="date" id="period-change-date" value="${this.formatDateForInput(this.currentSettings.context.periodChangeDate)}">
+                </div>
             </div>
 
             <div class="control-group">
@@ -181,7 +198,7 @@ export class SchedulingControls {
                     <input type="number" id="number-of-tasks" value="${this.currentSettings.displaySettings.numberOfTasks}" min="1" max="50">
                 </div>
                 <div class="control-item">
-                    <label>Completed Task Position:</label>
+                    <label>Show Completed Task On:</label>
                     <select id="completed-task-position">
                         <option value="1" ${this.currentSettings.displaySettings.completedTaskPosition === 1 ? 'selected' : ''}>Sensor Track</option>
                         <option value="2" ${this.currentSettings.displaySettings.completedTaskPosition === 2 ? 'selected' : ''}>Calendar Track</option>
@@ -190,7 +207,6 @@ export class SchedulingControls {
                 </div>
             </div>
 
-            <button id="update-schedule" class="primary-button">Update Schedule</button>
         `;
         
         this.container.innerHTML = html;
@@ -231,26 +247,41 @@ export class SchedulingControls {
     }
 
     attachEventListeners() {
-        // Trigger checkboxes
-        document.getElementById('trigger-calendar').addEventListener('change', (e) => {
-            this.updateTriggerVisibility();
-        });
-        
-        document.getElementById('trigger-sensor').addEventListener('change', (e) => {
-            this.updateTriggerVisibility();
-        });
-        
-        // Calendar repeating
-        document.getElementById('calendar-repeating').addEventListener('change', (e) => {
-            document.getElementById('calendar-repeat-config').style.display = 
-                e.target.checked ? '' : 'none';
-        });
+        // Create a debounced update function
+        let updateTimeout;
+        const debouncedUpdate = () => {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                this.updateSettings();
+                if (this.onChange) {
+                    this.onChange(this.currentSettings);
+                }
+            }, 300); // 300ms delay
+        };
 
-        // Update button
-        document.getElementById('update-schedule').addEventListener('click', () => {
-            this.updateSettings();
-            if (this.onChange) {
-                this.onChange(this.currentSettings);
+        // Add change listeners to all inputs
+        const allInputs = this.container.querySelectorAll('input, select');
+        allInputs.forEach(input => {
+            if (input.id === 'simulate-sensor' || input.id === 'new-sensor-value' || 
+                input.id === 'new-sensor-date' || input.id === 'new-avg-rate') {
+                // Skip simulation inputs
+                return;
+            }
+
+            if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
+                input.addEventListener('input', debouncedUpdate);
+            } else {
+                input.addEventListener('change', () => {
+                    // Handle visibility changes immediately
+                    if (input.id === 'trigger-calendar' || input.id === 'trigger-sensor') {
+                        this.updateTriggerVisibility();
+                    } else if (input.id === 'calendar-repeating') {
+                        document.getElementById('calendar-repeat-config').style.display = 
+                            input.checked ? '' : 'none';
+                    }
+                    // Then update schedule
+                    debouncedUpdate();
+                });
             }
         });
 
@@ -309,7 +340,9 @@ export class SchedulingControls {
                 lastSensorValue: parseFloat(document.getElementById('last-sensor-value').value),
                 lastSensorDate: new Date(document.getElementById('last-sensor-date').value),
                 averageSensorRate: parseFloat(document.getElementById('average-sensor-rate').value),
-                lastMaintenanceValue: parseFloat(document.getElementById('last-maintenance-value').value) || 0
+                lastMaintenanceValue: parseFloat(document.getElementById('last-maintenance-value').value) || 0,
+                periodChangeDate: document.getElementById('period-change-date').value ? 
+                    new Date(document.getElementById('period-change-date').value) : null
             },
             displaySettings: {
                 numberOfTasks: parseInt(document.getElementById('number-of-tasks').value),
@@ -405,6 +438,33 @@ export class SchedulingControls {
         this.currentSettings = simulatedSettings;
         if (this.onChange) {
             this.onChange(this.currentSettings, true); // true indicates this is a simulation
+        }
+    }
+
+    updateCalculatedStartingPoint(baseDate, source) {
+        const dateElement = document.getElementById('starting-point-date');
+        const sourceElement = document.getElementById('starting-point-source');
+        
+        if (dateElement && sourceElement) {
+            dateElement.textContent = baseDate ? this.formatDateForInput(baseDate) : 'Current Date';
+            sourceElement.textContent = source ? `(Using ${source})` : '(Using current date as fallback)';
+        }
+        
+        // Remove previous highlights
+        document.querySelectorAll('.control-item.date-used').forEach(el => {
+            el.classList.remove('date-used');
+        });
+        
+        // Add highlight to the source date field
+        if (source === 'Last Completed Task') {
+            const el = document.getElementById('last-completed-date');
+            if (el && el.parentElement) el.parentElement.classList.add('date-used');
+        } else if (source === 'Task Starting Date') {
+            const el = document.getElementById('definition-start-date');
+            if (el && el.parentElement) el.parentElement.classList.add('date-used');
+        } else if (source === 'Equipment Period Change') {
+            const el = document.getElementById('period-change-date');
+            if (el && el.parentElement) el.parentElement.classList.add('date-used');
         }
     }
 }
