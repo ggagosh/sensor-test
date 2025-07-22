@@ -1,191 +1,118 @@
 export class SchedulingVisualizer {
     constructor() {
-        this.chart = null;
+        this.timeline = null;
+        this.items = null;
+        this.groups = null;
         this.completedTaskPosition = 3;
-        this.colors = {
-            sensor: 'rgba(239, 68, 68, 0.8)',
-            calendar: 'rgba(59, 130, 246, 0.8)',
-            completed: 'rgba(16, 185, 129, 0.8)',
-            grid: 'rgba(229, 231, 235, 0.5)',
-            text: 'rgba(55, 65, 81, 1)'
-        };
     }
 
     init() {
-        const ctx = document.getElementById('timeline-canvas').getContext('2d');
+        const container = document.getElementById('timeline-container');
         
-        this.chart = new Chart(ctx, {
-            type: 'scatter',
-            data: {
-                datasets: []
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'point',
-                    intersect: false
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Maintenance Task Timeline (13 Months)',
-                        font: {
-                            size: 16
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => {
-                                const point = context.raw;
-                                return [
-                                    `Task #${point.taskNumber}`,
-                                    `Type: ${point.taskType}`,
-                                    `Date: ${new Date(point.x).toLocaleDateString()}`,
-                                    point.interval ? `Interval: ${point.interval}` : ''
-                                ].filter(Boolean);
-                            }
-                        }
-                    },
-                    zoom: {
-                        zoom: {
-                            wheel: {
-                                enabled: true,
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'x',
-                        },
-                        pan: {
-                            enabled: true,
-                            mode: 'x',
-                        }
-                    },
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'month',
-                            displayFormats: {
-                                month: 'MMM yyyy'
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'Timeline'
-                        },
-                        min: new Date(new Date().setMonth(new Date().getMonth() - 6)),
-                        max: new Date(new Date().setMonth(new Date().getMonth() + 7))
-                    },
-                    y: {
-                        type: 'category',
-                        labels: ['Sensor Tasks', 'Calendar Tasks', 'Completed Task'],
-                        title: {
-                            display: false
-                        },
-                        grid: {
-                            display: true,
-                            color: this.colors.grid
-                        }
-                    }
+        // Create groups for different task types
+        this.groups = new vis.DataSet([
+            { id: 1, content: 'Sensor', style: 'background-color: rgba(254, 226, 226, 0.3);' },
+            { id: 2, content: 'Calendar', style: 'background-color: rgba(219, 234, 254, 0.3);' },
+            { id: 3, content: 'Completed', style: 'background-color: rgba(209, 250, 229, 0.3);' }
+        ]);
+        
+        // Create empty items dataset
+        this.items = new vis.DataSet();
+        
+        // Configuration options
+        const options = {
+            // height: '370px',
+            stack: false,
+            showCurrentTime: true,
+            orientation: 'top',
+            zoomMin: 1000 * 60 * 60 * 24,
+            zoomMax: 1000 * 60 * 60 * 24 * 365 * 2,
+            editable: false,
+            margin: {
+                item: {
+                    horizontal: 0,
+                    vertical: 10
                 }
+            },
+            template: function (item) {
+                return `<div class="custom-item ${item.className}">${item.content}</div>`;
             }
-        });
+        };
+        
+        // Create timeline
+        this.timeline = new vis.Timeline(container, this.items, this.groups, options);
+        
+        // Add custom styling
+        this.addCustomStyles();
+        
+        // Set initial view range immediately
+        const today = new Date();
+        const start = new Date(today);
+        start.setMonth(start.getMonth() - 3); // 3 months before today
+        const end = new Date(today);
+        end.setMonth(end.getMonth() + 11); // 11 months from now
+        this.timeline.setWindow(start, end);
     }
 
     updateVisualization(tasks, currentDate = new Date(), lastCompletedDate = null) {
-        const datasets = [];
+        const items = [];
         
-        // Sensor tasks dataset
+        // Add sensor tasks
         const sensorTasks = tasks.filter(t => t.triggerType === 'sensor');
-        if (sensorTasks.length > 0) {
-            datasets.push({
-                label: 'Sensor Tasks',
-                data: sensorTasks.map(task => ({
-                    x: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
-                    y: 'Sensor Tasks',
-                    taskNumber: task.taskNumber,
-                    taskType: 'Sensor',
-                    interval: task.sensorInterval ? `${task.sensorInterval} hours` : null
-                })),
-                backgroundColor: this.colors.sensor,
-                borderColor: this.colors.sensor,
-                pointRadius: 8,
-                pointHoverRadius: 10,
-                showLine: false
+        sensorTasks.forEach(task => {
+            items.push({
+                id: `sensor-${task.taskNumber}`,
+                group: 1,
+                content: '●',
+                start: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
+                type: 'box',
+                className: 'sensor-item'
             });
-        }
-        
-        // Calendar tasks dataset
-        const calendarTasks = tasks.filter(t => t.triggerType === 'calendar');
-        if (calendarTasks.length > 0) {
-            datasets.push({
-                label: 'Calendar Tasks',
-                data: calendarTasks.map(task => ({
-                    x: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
-                    y: 'Calendar Tasks',
-                    taskNumber: task.taskNumber,
-                    taskType: 'Calendar',
-                    interval: task.calendarInterval ? `${task.calendarInterval.value} ${task.calendarInterval.unit}` : null
-                })),
-                backgroundColor: this.colors.calendar,
-                borderColor: this.colors.calendar,
-                pointRadius: 8,
-                pointHoverRadius: 10,
-                showLine: false
-            });
-        }
-        
-        // Completed task
-        if (lastCompletedDate) {
-            const yPosition = this.completedTaskPosition === 1 ? 'Sensor Tasks' : 
-                           this.completedTaskPosition === 2 ? 'Calendar Tasks' : 
-                           'Completed Task';
-            
-            datasets.push({
-                label: 'Last Completed',
-                data: [{
-                    x: lastCompletedDate instanceof Date ? lastCompletedDate : new Date(lastCompletedDate),
-                    y: yPosition,
-                    taskNumber: 'Completed',
-                    taskType: 'Completed',
-                    interval: null
-                }],
-                backgroundColor: this.colors.completed,
-                borderColor: this.colors.completed,
-                pointRadius: 10,
-                pointHoverRadius: 12,
-                pointStyle: 'rectRot',
-                showLine: false
-            });
-        }
-        
-        // Current date line
-        const today = new Date();
-        datasets.push({
-            label: 'Today',
-            data: [
-                { x: today, y: 'Sensor Tasks' },
-                { x: today, y: 'Calendar Tasks' },
-                { x: today, y: 'Completed Task' }
-            ],
-            borderColor: 'rgba(220, 38, 38, 0.8)',
-            borderWidth: 2,
-            borderDash: [5, 5],
-            pointRadius: 0,
-            showLine: true,
-            fill: false
         });
         
-        // Update chart data
-        this.chart.data.datasets = datasets;
-        this.chart.update();
+        // Add calendar tasks
+        const calendarTasks = tasks.filter(t => t.triggerType === 'calendar');
+        calendarTasks.forEach(task => {
+            items.push({
+                id: `calendar-${task.taskNumber}`,
+                group: 2,
+                content: '●',
+                start: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
+                type: 'box',
+                className: 'calendar-item'
+            });
+        });
+        
+        // Add completed task
+        if (lastCompletedDate) {
+            const groupId = this.completedTaskPosition === 1 ? 1 : 
+                           this.completedTaskPosition === 2 ? 2 : 3;
+            
+            items.push({
+                id: 'completed-task',
+                group: groupId,
+                content: '✓',
+                start: lastCompletedDate instanceof Date ? lastCompletedDate : new Date(lastCompletedDate),
+                type: 'box',
+                className: 'completed-item'
+            });
+        }
+        
+        // Update items
+        this.items.clear();
+        this.items.add(items);
+        
+        console.log('Timeline items added:', items.length, items);
+        
+        // Ensure the view stays at desired range after adding items
+        setTimeout(() => {
+            const today = new Date();
+            const start = new Date(today);
+            start.setMonth(start.getMonth() - 3); // 3 months before today
+            const end = new Date(today);
+            end.setMonth(end.getMonth() + 11); // 11 months from now
+            this.timeline.setWindow(start, end);
+        }, 100);
     }
 
     setCompletedTaskPosition(position) {
@@ -197,7 +124,7 @@ export class SchedulingVisualizer {
             <div class="schedule-details">
                 <h3>Scheduled Tasks</h3>
                 <div class="chart-controls">
-                    <button onclick="window.schedulingApp.visualizer.resetZoom()">Reset Zoom</button>
+                    <button onclick="window.schedulingApp.visualizer.resetZoom()">Reset View</button>
                     <span class="zoom-hint">Use mouse wheel to zoom, drag to pan</span>
                 </div>
                 <div class="task-list">
@@ -211,14 +138,14 @@ export class SchedulingVisualizer {
                                 <div class="due-date">
                                     <strong>Due:</strong> ${task.dueDate.toLocaleString()}
                                 </div>
-                                ${task.calendarDate ? `
-                                    <div class="calendar-date">
-                                        <strong>Calendar:</strong> ${new Date(task.calendarDate).toLocaleDateString()}
+                                ${task.calendarInfo ? `
+                                    <div class="task-info">
+                                        <strong>Interval:</strong> ${task.calendarInfo.repeatEvery} ${task.calendarInfo.interval}
                                     </div>
                                 ` : ''}
-                                ${task.sensorDate ? `
-                                    <div class="sensor-date">
-                                        <strong>Sensor:</strong> ${new Date(task.sensorDate).toLocaleDateString()}
+                                ${task.sensorInfo ? `
+                                    <div class="task-info">
+                                        <strong>Trigger:</strong> ${task.sensorInfo.triggerValue} units
                                     </div>
                                 ` : ''}
                             </div>
@@ -233,15 +160,208 @@ export class SchedulingVisualizer {
     }
 
     resetZoom() {
-        if (this.chart) {
-            this.chart.resetZoom();
-        }
+        const today = new Date();
+        const start = new Date(today);
+        start.setMonth(start.getMonth() - 3); // 3 months before today
+        const end = new Date(today);
+        end.setMonth(end.getMonth() + 11); // 11 months from now
+        this.timeline.setWindow(start, end, {
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    }
+
+    addCustomStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Timeline container */
+            #timeline-container {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }
+            
+            #timeline-container .vis-timeline {
+                border: none;
+                border-radius: 0;
+                background: transparent;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            
+            /* Panel backgrounds */
+            .vis-panel.vis-center,
+            .vis-panel.vis-left,
+            .vis-panel.vis-right {
+                background: white;
+            }
+            
+            /* Labels styling */
+            .vis-labelset {
+                background: #f8fafc;
+                border-right: 1px solid #e5e7eb;
+                width: 150px !important;
+            }
+            
+            .vis-labelset .vis-label {
+                padding: 0 20px;
+                font-weight: 600;
+                font-size: 14px;
+                color: #374151;
+                display: flex;
+                align-items: center;
+                height: 123px !important;
+                border-bottom: 1px solid #e5e7eb;
+                position: relative;
+            }
+            
+            .vis-labelset .vis-label:last-child {
+                border-bottom: none;
+            }
+            
+            .vis-labelset .vis-label::before {
+                content: '●';
+                position: absolute;
+                left: 8px;
+                font-size: 10px;
+            }
+            
+            .vis-labelset .vis-label:nth-child(1)::before {
+                color: #dc2626;
+            }
+            
+            .vis-labelset .vis-label:nth-child(2)::before {
+                color: #2563eb;
+            }
+            
+            .vis-labelset .vis-label:nth-child(3)::before {
+                color: #059669;
+            }
+            
+            /* Background stripes for groups */
+            .vis-foreground .vis-group {
+                height: 123px !important;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            
+            .vis-foreground .vis-group:last-child {
+                border-bottom: none;
+            }
+            
+            .vis-foreground .vis-group:nth-child(1) {
+                background: linear-gradient(to right, 
+                    rgba(254, 242, 242, 0.5) 0%, 
+                    rgba(254, 226, 226, 0.3) 100%);
+            }
+            
+            .vis-foreground .vis-group:nth-child(2) {
+                background: linear-gradient(to right, 
+                    rgba(239, 246, 255, 0.5) 0%, 
+                    rgba(219, 234, 254, 0.3) 100%);
+            }
+            
+            .vis-foreground .vis-group:nth-child(3) {
+                background: linear-gradient(to right, 
+                    rgba(236, 253, 245, 0.5) 0%, 
+                    rgba(209, 250, 229, 0.3) 100%);
+            }
+            
+            /* Custom items */
+            .vis-item.vis-box {
+                background-color: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+            
+            .custom-item {
+                width: 16px !important;
+                height: 16px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 12px !important;
+                font-weight: bold !important;
+                border: 2px solid white !important;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+                cursor: pointer !important;
+                position: relative !important;
+                transition: all 0.2s ease !important;
+            }
+            
+            .custom-item.sensor-item {
+                background-color: #dc2626 !important;
+                color: #dc2626 !important;
+            }
+            
+            .custom-item.calendar-item {
+                background-color: #2563eb !important;
+                color: #2563eb !important;
+            }
+            
+            .custom-item.completed-item {
+                background-color: #059669 !important;
+                color: white !important;
+                font-size: 10px !important;
+                width: 20px !important;
+                height: 20px !important;
+            }
+            
+            .custom-item:hover {
+                transform: scale(1.3);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+            }
+            
+            /* Current time line */
+            .vis-current-time {
+                background-color: #dc2626;
+                width: 2px;
+                box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
+            }
+            
+            /* Time axis styling */
+            .vis-time-axis {
+                background: #f8fafc;
+                border-top: 1px solid #e5e7eb;
+                height: 50px;
+            }
+            
+            .vis-time-axis .vis-text {
+                color: #6b7280;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            
+            .vis-time-axis .vis-text.vis-major {
+                color: #1f2937;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            
+            /* Grid lines */
+            .vis-grid.vis-vertical {
+                border-left: 1px solid #f3f4f6;
+            }
+            
+            .vis-grid.vis-major {
+                border-left: 1px solid #e5e7eb;
+            }
+            
+            /* Remove focus outlines */
+            .vis-timeline:focus {
+                outline: none;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     destroy() {
-        if (this.chart) {
-            this.chart.destroy();
-            this.chart = null;
+        if (this.timeline) {
+            this.timeline.destroy();
+            this.timeline = null;
         }
     }
 }

@@ -123,12 +123,43 @@ h1 {
     overflow: hidden;
     min-width: 0; /* Prevent grid blowout */
     flex: 1;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    position: relative;
+    padding: 15px;
+}
+
+.visualization-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, 
+        #ef4444 0%, 
+        #3b82f6 33%, 
+        #10b981 66%, 
+        #ef4444 100%);
+    opacity: 0.6;
 }
 
 h2 {
     color: var(--primary-blue);
     font-size: 18px;
     margin-bottom: 15px;
+}
+
+.visualization-section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary-blue), var(--secondary-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+    position: relative;
+    z-index: 10;
 }
 
 h3 {
@@ -267,16 +298,13 @@ h3 {
 }
 
 #timeline-container {
-    height: 400px;
+    height: 300px;
     margin-bottom: 30px;
     width: 100%;
-    overflow: hidden;
     position: relative;
-}
-
-#timeline-canvas {
-    max-width: 100%;
-    height: 100%;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .schedule-details {
@@ -504,7 +532,13 @@ header h1 {
 
 /* Smaller timeline */
 #timeline-container {
-    height: 350px;
+    height: 423px;
+    padding: 0;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    position: relative;
 }
 
 /* Compact schedule details */
