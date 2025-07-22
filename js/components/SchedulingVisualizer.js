@@ -159,21 +159,21 @@ export class SchedulingVisualizer {
                     <table class="task-table">
                         <thead>
                             <tr>
-                                <th width="60">#</th>
-                                <th width="90">Type</th>
-                                <th width="140">Due Date</th>
-                                <th width="100">Days Until</th>
-                                <th>Trigger Info</th>
-                                <th width="80">Status</th>
+                                <th width="40">#</th>
+                                <th width="40">📌</th>
+                                <th width="100">Due Date</th>
+                                <th width="120">Days Until</th>
+                                <th>Trigger</th>
+                                <th width="70">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${tasksWithDays.slice(0, 20).map(task => `
                                 <tr class="${task.daysUntil < 0 ? 'overdue' : task.daysUntil <= 7 ? 'soon' : ''}">
                                     <td class="task-number">${task.taskNumber}</td>
-                                    <td>
-                                        <span class="task-type ${task.triggerType}">
-                                            ${task.triggerType === 'sensor' ? '⚡' : '📅'} ${task.triggerType}
+                                    <td class="task-type-cell">
+                                        <span class="task-icon ${task.triggerType}" title="${task.triggerType}">
+                                            ${task.triggerType === 'sensor' ? '⚡' : '📅'}
                                         </span>
                                     </td>
                                     <td>${task.dueDate.toLocaleDateString()}</td>

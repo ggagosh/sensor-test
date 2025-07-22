@@ -557,13 +557,13 @@ header h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 20px;
+    padding: 10px 15px;
     border-bottom: 1px solid var(--gray-200);
 }
 
 .schedule-header h3 {
     margin: 0;
-    font-size: 18px;
+    font-size: 16px;
     color: var(--gray-900);
 }
 
@@ -590,8 +590,8 @@ header h1 {
 
 .schedule-summary {
     display: flex;
-    gap: 30px;
-    padding: 15px 20px;
+    gap: 20px;
+    padding: 8px 15px;
     background: var(--gray-50);
     border-bottom: 1px solid var(--gray-200);
 }
@@ -599,16 +599,16 @@ header h1 {
 .summary-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
 }
 
 .summary-label {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--gray-600);
 }
 
 .summary-value {
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--gray-900);
 }
@@ -619,12 +619,31 @@ header h1 {
     overflow-y: auto;
     border: 1px solid var(--gray-200);
     border-radius: 0 0 8px 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) var(--gray-100);
+}
+
+.task-table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.task-table-container::-webkit-scrollbar-track {
+    background: var(--gray-100);
+}
+
+.task-table-container::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 4px;
+}
+
+.task-table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-400);
 }
 
 .task-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .task-table thead {
@@ -636,15 +655,17 @@ header h1 {
 
 .task-table th {
     text-align: left;
-    padding: 12px 15px;
+    padding: 8px 10px;
     font-weight: 600;
     color: var(--gray-700);
     border-bottom: 2px solid var(--gray-200);
     white-space: nowrap;
+    font-size: 11px;
+    text-transform: uppercase;
 }
 
 .task-table td {
-    padding: 10px 15px;
+    padding: 6px 10px;
     border-bottom: 1px solid var(--gray-100);
 }
 
@@ -665,23 +686,13 @@ header h1 {
     color: var(--gray-900);
 }
 
-.task-type {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
+.task-type-cell {
+    text-align: center;
 }
 
-.task-type.sensor {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-red);
-}
-
-.task-type.calendar {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--secondary-blue);
+.task-icon {
+    font-size: 16px;
+    cursor: help;
 }
 
 .days-until {
@@ -707,9 +718,9 @@ header h1 {
 
 .status-badge {
     display: inline-block;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
     font-weight: 600;
 }
 
