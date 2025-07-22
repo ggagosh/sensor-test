@@ -33,7 +33,8 @@ export class SchedulingControls {
                 lastCompletedTaskDate: threeMonthsAgo,
                 lastSensorValue: 2500,
                 lastSensorDate: today,
-                averageSensorRate: 24 // hours per day
+                averageSensorRate: 24, // hours per day
+                lastMaintenanceValue: 0 // Value at last maintenance
             },
             displaySettings: {
                 numberOfTasks: 30,
@@ -166,6 +167,10 @@ export class SchedulingControls {
                 <div class="control-item">
                     <label>Average Sensor Rate:</label>
                     <input type="number" id="average-sensor-rate" value="${this.currentSettings.context.averageSensorRate}" min="0.1" step="0.1"> units/day
+                </div>
+                <div class="control-item">
+                    <label>Last Maintenance Value:</label>
+                    <input type="number" id="last-maintenance-value" value="${this.currentSettings.context.lastMaintenanceValue}" min="0" placeholder="Sensor value at last maintenance">
                 </div>
             </div>
 
@@ -303,7 +308,8 @@ export class SchedulingControls {
                 lastCompletedTaskDate: lastCompletedDate,
                 lastSensorValue: parseFloat(document.getElementById('last-sensor-value').value),
                 lastSensorDate: new Date(document.getElementById('last-sensor-date').value),
-                averageSensorRate: parseFloat(document.getElementById('average-sensor-rate').value)
+                averageSensorRate: parseFloat(document.getElementById('average-sensor-rate').value),
+                lastMaintenanceValue: parseFloat(document.getElementById('last-maintenance-value').value) || 0
             },
             displaySettings: {
                 numberOfTasks: parseInt(document.getElementById('number-of-tasks').value),
@@ -364,7 +370,9 @@ export class SchedulingControls {
                 ...this.currentSettings.context,
                 lastSensorValue: newValue,
                 lastSensorDate: newDate,
-                averageSensorRate: newAverageRate
+                averageSensorRate: newAverageRate,
+                // Keep the existing maintenance value unless it's a maintenance simulation
+                lastMaintenanceValue: this.currentSettings.context.lastMaintenanceValue
             }
         };
 

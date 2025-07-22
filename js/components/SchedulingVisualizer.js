@@ -108,7 +108,7 @@ export class SchedulingVisualizer {
             datasets.push({
                 label: 'Sensor Tasks',
                 data: sensorTasks.map(task => ({
-                    x: task.dueDate,
+                    x: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
                     y: 'Sensor Tasks',
                     taskNumber: task.taskNumber,
                     taskType: 'Sensor',
@@ -128,7 +128,7 @@ export class SchedulingVisualizer {
             datasets.push({
                 label: 'Calendar Tasks',
                 data: calendarTasks.map(task => ({
-                    x: task.dueDate,
+                    x: task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate),
                     y: 'Calendar Tasks',
                     taskNumber: task.taskNumber,
                     taskType: 'Calendar',
@@ -151,7 +151,7 @@ export class SchedulingVisualizer {
             datasets.push({
                 label: 'Last Completed',
                 data: [{
-                    x: lastCompletedDate,
+                    x: lastCompletedDate instanceof Date ? lastCompletedDate : new Date(lastCompletedDate),
                     y: yPosition,
                     taskNumber: 'Completed',
                     taskType: 'Completed',

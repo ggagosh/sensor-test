@@ -171,29 +171,246 @@ export class SchedulingLogic {
             return null;
         }
 
-        // Calculate days needed to reach trigger value
-        const daysToTrigger = config.triggerValue / context.averageSensorRate;
-        
-        let nextDate = new Date(baseDate);
-        nextDate.setDate(nextDate.getDate() + daysToTrigger);
+        // Get sensor trigger dates using the advanced logic
+        const dates = this.getSensorTriggerDates(
+            baseDate,
+            this.addDays(baseDate, 13 * 30), // 13 months ahead
+            {
+                lastReadingValue: context.lastSensorValue,
+                lastReadingDate: context.lastSensorDate,
+                calculatedAverage: context.averageSensorRate,
+                lastMaintenanceDate: context.lastCompletedTaskDate,
+                lastMaintenanceValue: context.lastMaintenanceValue || 0
+            },
+            config.triggerValue,
+            config.isOnce ? 'Single' : 'Periodic',
+            !isFloating // isFixed is opposite of isFloating
+        );
 
-        // Skip to future if needed (never generate overdue tasks)
-        while (nextDate < currentDate) {
-            nextDate.setDate(nextDate.getDate() + daysToTrigger);
+        // Return the first date if available
+        return dates.length > 0 ? dates[0] : null;
+    }
+
+    // Get all sensor dates at once
+    calculateAllSensorDates(baseDate, config, isFloating, currentDate, context, numberOfTasks) {
+        if (!context.averageSensorRate || context.averageSensorRate === 0) {
+            return [];
         }
 
-        // If preventive is off, check if sensor would have reached value
-        if (!config.preventive) {
-            const daysSinceLastUpdate = (currentDate - context.lastSensorDate) / (1000 * 60 * 60 * 24);
-            const projectedValue = context.lastSensorValue + (daysSinceLastUpdate * context.averageSensorRate);
-            
-            // If we haven't reached the trigger value yet, don't schedule
-            if (projectedValue < config.triggerValue) {
-                return null;
+        // Get sensor trigger dates using the advanced logic
+        const dates = this.getSensorTriggerDates(
+            baseDate,
+            this.addDays(baseDate, 13 * 30), // 13 months ahead
+            {
+                lastReadingValue: context.lastSensorValue,
+                lastReadingDate: context.lastSensorDate,
+                calculatedAverage: context.averageSensorRate,
+                lastMaintenanceDate: context.lastCompletedTaskDate,
+                lastMaintenanceValue: context.lastMaintenanceValue || 0
+            },
+            config.triggerValue,
+            config.isOnce ? 'Single' : 'Periodic',
+            !isFloating // isFixed is opposite of isFloating
+        );
+
+        // Return up to numberOfTasks dates
+        return dates.slice(0, numberOfTasks);
+    }
+
+    /**
+     * Calculate sensor trigger dates with full logic matching TypeScript implementation
+     */
+    getSensorTriggerDates(
+        startDate,
+        endDate,
+        sensor,
+        triggerValue,
+        type,
+        isFixed = false,
+        currentDate = null
+    ) {
+        const {
+            lastReadingValue,
+            lastReadingDate,
+            calculatedAverage,
+            lastMaintenanceDate,
+            lastMaintenanceValue
+        } = sensor;
+
+        // Current date (today) - allow override for testing
+        const today = currentDate ? new Date(currentDate) : new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Adjust startDate to be the maximum of startDate and today
+        const adjustedStartDate = this.maxDate(startDate, today);
+
+        let accumulatedSinceReference;
+        let referenceDate;
+
+        // Always use last reading as reference when available
+        if (lastReadingDate) {
+            accumulatedSinceReference = lastReadingValue ?? 0;
+            referenceDate = lastReadingDate;
+        } else {
+            accumulatedSinceReference = 0;
+            referenceDate = adjustedStartDate;
+        }
+
+        // Calculate the next trigger accumulated value
+        let nextTriggerAccumulated;
+        let needsImmediateTask = false;
+
+        if (isFixed) {
+            // Fixed mode: always use absolute multiples of triggerValue
+            const triggersPassed = Math.floor(accumulatedSinceReference / triggerValue);
+            nextTriggerAccumulated = (triggersPassed + 1) * triggerValue;
+
+            // In fixed mode, check if we need immediate task
+            if (lastMaintenanceDate && lastMaintenanceValue !== undefined) {
+                // Check if we've passed a trigger point since last maintenance
+                const lastMaintenanceTrigger = Math.floor(lastMaintenanceValue / triggerValue) * triggerValue;
+                needsImmediateTask = accumulatedSinceReference > lastMaintenanceTrigger &&
+                    (!lastMaintenanceDate || this.isAfter(adjustedStartDate, lastMaintenanceDate));
+            } else {
+                // No maintenance, check if we've exceeded any trigger point
+                needsImmediateTask = triggersPassed > 0;
+            }
+        } else if (lastMaintenanceDate && lastMaintenanceValue !== undefined) {
+            // Floating mode with maintenance: calculate relative to maintenance baseline
+            const valuesSinceMaintenance = accumulatedSinceReference - lastMaintenanceValue;
+
+            // Check if we need immediate task (exceeded maintenance + trigger)
+            if (valuesSinceMaintenance >= triggerValue &&
+                (!lastMaintenanceDate || this.isAfter(adjustedStartDate, lastMaintenanceDate))) {
+                needsImmediateTask = true;
+            }
+
+            const maintenanceTriggersPassed = Math.floor(valuesSinceMaintenance / triggerValue);
+            nextTriggerAccumulated = (maintenanceTriggersPassed + 1) * triggerValue + lastMaintenanceValue;
+        } else {
+            // Floating mode without maintenance: use regular calculation
+            const triggersPassed = Math.floor(accumulatedSinceReference / triggerValue);
+            nextTriggerAccumulated = (triggersPassed + 1) * triggerValue;
+
+            // Check if we've exceeded a trigger without maintenance
+            needsImmediateTask = triggersPassed > 0;
+        }
+
+        // Initialize array to hold trigger dates
+        const triggerDates = [];
+
+        if (needsImmediateTask) {
+            // Immediate task needed - schedule for today
+            triggerDates.push(adjustedStartDate);
+
+            if (type === 'Single') {
+                return triggerDates;
             }
         }
 
-        return nextDate;
+        // Start from reference date for future calculations
+        let currentIterDate = referenceDate;
+        let currentAccumulatedValue = accumulatedSinceReference;
+
+        // Special handling for floating mode when reading is exactly one trigger past maintenance
+        if (needsImmediateTask && !isFixed && lastMaintenanceDate && 
+            lastMaintenanceValue !== undefined && lastReadingDate && 
+            lastReadingValue !== undefined) {
+            const valuesSinceMaintenance = lastReadingValue - lastMaintenanceValue;
+            if (valuesSinceMaintenance === triggerValue) {
+                // Calculate projected accumulated value at start date
+                const daysSinceReading = this.differenceInDays(adjustedStartDate, lastReadingDate);
+                const progressionSinceReading = daysSinceReading * calculatedAverage;
+                const projectedAccumulated = lastReadingValue + progressionSinceReading;
+
+                // Adjust next trigger to be one full interval from the projected value
+                nextTriggerAccumulated = projectedAccumulated + triggerValue;
+            }
+        }
+
+        while (this.isBefore(currentIterDate, endDate) || this.isSameDay(currentIterDate, endDate)) {
+            const unitsToNextTrigger = nextTriggerAccumulated - currentAccumulatedValue;
+            const daysToNextTrigger = unitsToNextTrigger / calculatedAverage;
+
+            // If currentAccumulatedValue >= nextTriggerAccumulated, we've passed this trigger
+            if (unitsToNextTrigger <= 0) {
+                // We've already passed this trigger point
+                currentAccumulatedValue = nextTriggerAccumulated;
+                nextTriggerAccumulated += triggerValue;
+            } else {
+                // Calculate the date of the next trigger
+                const calculatedTriggerDate = this.addDays(currentIterDate, Math.ceil(daysToNextTrigger));
+
+                // If the calculated date is in the past, schedule for today
+                const nextTriggerDate = this.isBefore(calculatedTriggerDate, adjustedStartDate)
+                    ? adjustedStartDate
+                    : calculatedTriggerDate;
+
+                // If next trigger date is after endDate, break the loop
+                if (this.isAfter(nextTriggerDate, endDate)) {
+                    // Check if there is anything in triggerDates, if not add the next trigger date
+                    if (triggerDates.length === 0) {
+                        triggerDates.push(nextTriggerDate);
+                    }
+                    break;
+                }
+
+                // Add the next trigger date to the array if it's not a duplicate
+                const lastDate = triggerDates[triggerDates.length - 1];
+                if (!lastDate || !this.isSameDay(lastDate, nextTriggerDate)) {
+                    triggerDates.push(nextTriggerDate);
+                }
+
+                if (type === 'Single') {
+                    // Only one trigger date needed
+                    break;
+                }
+
+                // Update for next iteration
+                currentAccumulatedValue = nextTriggerAccumulated;
+                currentIterDate = calculatedTriggerDate; // Use calculated date, not adjusted date
+                nextTriggerAccumulated += triggerValue;
+            }
+        }
+
+        if (triggerDates.length === 0) {
+            return [];
+        }
+
+        // Limit to 13 months from first trigger
+        const thirteenMonthsAfterFirstTrigger = this.addDays(triggerDates[0], 13 * 30);
+
+        return triggerDates.filter(date => this.isBefore(date, thirteenMonthsAfterFirstTrigger));
+    }
+
+    // Helper date functions
+    addDays(date, days) {
+        const result = new Date(date);
+        result.setDate(result.getDate() + days);
+        return result;
+    }
+
+    maxDate(date1, date2) {
+        return date1 > date2 ? date1 : date2;
+    }
+
+    isAfter(date1, date2) {
+        return date1 > date2;
+    }
+
+    isBefore(date1, date2) {
+        return date1 < date2;
+    }
+
+    isSameDay(date1, date2) {
+        return date1.getFullYear() === date2.getFullYear() &&
+               date1.getMonth() === date2.getMonth() &&
+               date1.getDate() === date2.getDate();
+    }
+
+    differenceInDays(date1, date2) {
+        const diffTime = Math.abs(date1 - date2);
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     /**
@@ -238,6 +455,33 @@ export class SchedulingLogic {
 
     _generateSingleTypeSeries(params, numberOfTasks) {
         const tasks = [];
+        
+        // Special handling for sensor-only tasks - generate all dates at once
+        if (params.triggers.sensor && !params.triggers.calendar) {
+            const baseDate = this.determineBaseDate(params);
+            const sensorDates = this.calculateAllSensorDates(
+                baseDate,
+                params.sensorConfig,
+                params.isFloating,
+                params.currentDate || new Date(),
+                params.context,
+                numberOfTasks
+            );
+            
+            sensorDates.forEach((date, index) => {
+                tasks.push({
+                    taskNumber: index + 1,
+                    dueDate: date,
+                    triggerType: 'sensor',
+                    calendarInfo: params.calendarConfig,
+                    sensorInfo: params.sensorConfig
+                });
+            });
+            
+            return tasks;
+        }
+        
+        // Original logic for calendar or mixed triggers
         let currentParams = { ...params };
         let taskCount = 0;
         
