@@ -45,6 +45,7 @@ export class SchedulingControls {
     init(container) {
         this.container = container;
         this.render();
+        this.renderSimulation();
         this.attachEventListeners();
     }
 
@@ -52,16 +53,14 @@ export class SchedulingControls {
         const html = `
             <div class="control-group">
                 <h3>Interval Type</h3>
-                <div class="control-item">
-                    <label>
+                <div class="radio-group">
+                    <label class="radio-inline">
                         <input type="radio" name="interval-type" value="fixed" ${!this.currentSettings.isFloating ? 'checked' : ''}>
-                        Fixed - Intervals never change
+                        Fixed
                     </label>
-                </div>
-                <div class="control-item">
-                    <label>
+                    <label class="radio-inline">
                         <input type="radio" name="interval-type" value="floating" ${this.currentSettings.isFloating ? 'checked' : ''}>
-                        Floating - Intervals adjust when overdue
+                        Floating
                     </label>
                 </div>
             </div>
@@ -105,9 +104,9 @@ export class SchedulingControls {
                     </label>
                 </div>
                 <div id="calendar-repeat-config" style="${this.currentSettings.calendarConfig.isRepeating ? '' : 'display: none'}">
-                    <div class="control-item">
-                        <label>Repeat every:</label>
-                        <input type="number" id="calendar-repeat-value" value="${this.currentSettings.calendarConfig.repeatEvery}" min="1" style="width: 60px">
+                    <div class="control-item inline-controls">
+                        <label style="display: inline-block; margin-right: 10px;">Repeat every:</label>
+                        <input type="number" id="calendar-repeat-value" value="${this.currentSettings.calendarConfig.repeatEvery}" min="1">
                         <select id="calendar-interval">
                             <option value="day" ${this.currentSettings.calendarConfig.interval === 'day' ? 'selected' : ''}>Day(s)</option>
                             <option value="month" ${this.currentSettings.calendarConfig.interval === 'month' ? 'selected' : ''}>Month(s)</option>
@@ -126,19 +125,20 @@ export class SchedulingControls {
 
             <div class="control-group" id="sensor-settings" style="${this.currentSettings.triggers.sensor ? '' : 'display: none'}">
                 <h3>Sensor Settings</h3>
-                <div class="control-item">
-                    <label>
+                <div class="radio-group">
+                    <label class="radio-inline">
                         <input type="radio" name="sensor-generation" value="every" ${!this.currentSettings.sensorConfig.isOnce ? 'checked' : ''}>
                         Generate Every
                     </label>
-                    <label>
+                    <label class="radio-inline">
                         <input type="radio" name="sensor-generation" value="once" ${this.currentSettings.sensorConfig.isOnce ? 'checked' : ''}>
                         Generate Once
                     </label>
                 </div>
-                <div class="control-item">
-                    <label>Trigger Value:</label>
-                    <input type="number" id="sensor-trigger-value" value="${this.currentSettings.sensorConfig.triggerValue}" min="1"> units
+                <div class="control-item inline-controls">
+                    <label style="display: inline-block; margin-right: 10px;">Trigger Value:</label>
+                    <input type="number" id="sensor-trigger-value" value="${this.currentSettings.sensorConfig.triggerValue}" min="1">
+                    <span style="margin-left: 5px;">units</span>
                 </div>
                 <div class="control-item">
                     <label>
@@ -191,6 +191,40 @@ export class SchedulingControls {
         this.container.innerHTML = html;
     }
 
+    renderSimulation() {
+        const simulationContainer = document.getElementById('sensor-simulation-container');
+        if (!simulationContainer) return;
+
+        const html = `
+            <div class="control-item">
+                <label>New Sensor Value:</label>
+                <input type="number" id="new-sensor-value" placeholder="Enter value" min="0" class="full-width">
+            </div>
+            <div class="control-item">
+                <label>Sensor Date:</label>
+                <input type="date" id="new-sensor-date" value="${this.formatDateForInput(new Date())}" class="full-width">
+            </div>
+            <div class="control-item">
+                <label>Average Rate Override:</label>
+                <div class="inline-controls">
+                    <input type="number" id="new-avg-rate" placeholder="Optional" min="0.1" step="0.1">
+                    <small style="margin-left: 5px;">units/day</small>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 10px;">
+                <button id="simulate-sensor" class="secondary-button" style="width: 100%;">Apply Simulation</button>
+            </div>
+            <div id="simulation-info" style="display: none;">
+                <div class="simulation-result">
+                    <strong>Result:</strong>
+                    <div id="simulation-details"></div>
+                </div>
+            </div>
+        `;
+        
+        simulationContainer.innerHTML = html;
+    }
+
     attachEventListeners() {
         // Trigger checkboxes
         document.getElementById('trigger-calendar').addEventListener('change', (e) => {
@@ -212,6 +246,18 @@ export class SchedulingControls {
             this.updateSettings();
             if (this.onChange) {
                 this.onChange(this.currentSettings);
+            }
+        });
+
+        // Simulate sensor button
+        document.getElementById('simulate-sensor').addEventListener('click', () => {
+            this.simulateSensorInput();
+        });
+
+        // Enter key in sensor input
+        document.getElementById('new-sensor-value').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.simulateSensorInput();
             }
         });
     }
@@ -276,5 +322,81 @@ export class SchedulingControls {
 
     setOnChange(callback) {
         this.onChange = callback;
+    }
+
+    simulateSensorInput() {
+        const newValueInput = document.getElementById('new-sensor-value');
+        const newDateInput = document.getElementById('new-sensor-date');
+        const newAvgRateInput = document.getElementById('new-avg-rate');
+        
+        const newValue = parseFloat(newValueInput.value);
+        const newDate = new Date(newDateInput.value);
+        const overrideAvgRate = newAvgRateInput.value ? parseFloat(newAvgRateInput.value) : null;
+        
+        if (isNaN(newValue) || newValue < 0) {
+            alert('Please enter a valid sensor value');
+            return;
+        }
+
+        const oldValue = this.currentSettings.context.lastSensorValue;
+        const oldDate = this.currentSettings.context.lastSensorDate;
+        const difference = newValue - oldValue;
+        const daysSinceLastUpdate = (newDate - oldDate) / (1000 * 60 * 60 * 24);
+        const actualRate = daysSinceLastUpdate > 0 ? difference / daysSinceLastUpdate : 0;
+
+        // Calculate new average rate
+        let newAverageRate;
+        if (overrideAvgRate !== null) {
+            // Use override if provided
+            newAverageRate = overrideAvgRate;
+        } else if (daysSinceLastUpdate > 0) {
+            // Calculate weighted average (30% new, 70% old)
+            newAverageRate = (actualRate * 0.3 + this.currentSettings.context.averageSensorRate * 0.7);
+        } else {
+            // Keep current average if no time has passed
+            newAverageRate = this.currentSettings.context.averageSensorRate;
+        }
+
+        // Update the context with new sensor data
+        const simulatedSettings = {
+            ...this.currentSettings,
+            context: {
+                ...this.currentSettings.context,
+                lastSensorValue: newValue,
+                lastSensorDate: newDate,
+                averageSensorRate: newAverageRate
+            }
+        };
+
+        // Show simulation info
+        const infoDiv = document.getElementById('simulation-info');
+        const detailsDiv = document.getElementById('simulation-details');
+        
+        detailsDiv.innerHTML = `
+            <div style="margin-top: 8px; font-size: 11px; line-height: 1.4;">
+                <div><strong>Value:</strong> ${oldValue.toFixed(1)} → ${newValue.toFixed(1)} (${difference > 0 ? '+' : ''}${difference.toFixed(1)})</div>
+                <div><strong>Date:</strong> ${this.formatDateForInput(oldDate)} → ${this.formatDateForInput(newDate)}</div>
+                <div><strong>Days:</strong> ${daysSinceLastUpdate.toFixed(1)} days</div>
+                <div><strong>Actual Rate:</strong> ${actualRate.toFixed(2)} units/day</div>
+                <div><strong>New Avg Rate:</strong> ${simulatedSettings.context.averageSensorRate.toFixed(2)} units/day${overrideAvgRate !== null ? ' (override)' : ''}</div>
+            </div>
+        `;
+        
+        infoDiv.style.display = 'block';
+
+        // Update the inputs to reflect the simulation
+        document.getElementById('last-sensor-value').value = newValue;
+        document.getElementById('last-sensor-date').value = this.formatDateForInput(newDate);
+        document.getElementById('average-sensor-rate').value = simulatedSettings.context.averageSensorRate.toFixed(2);
+
+        // Clear the simulation inputs
+        newValueInput.value = '';
+        newAvgRateInput.value = '';
+
+        // Trigger update with simulated settings
+        this.currentSettings = simulatedSettings;
+        if (this.onChange) {
+            this.onChange(this.currentSettings, true); // true indicates this is a simulation
+        }
     }
 }

@@ -17,15 +17,15 @@ export class SchedulingApp {
         this.controls.init(document.getElementById('scheduling-controls'));
         
         // Set up event handlers
-        this.controls.setOnChange((settings) => {
-            this.updateSchedule(settings);
+        this.controls.setOnChange((settings, isSimulation) => {
+            this.updateSchedule(settings, isSimulation);
         });
         
         // Initial update
         this.updateSchedule(this.controls.currentSettings);
     }
 
-    updateSchedule(settings) {
+    updateSchedule(settings, isSimulation = false) {
         // Generate task series
         const tasks = this.schedulingLogic.generateTaskSeries(settings, settings.displaySettings.numberOfTasks);
         
@@ -40,10 +40,10 @@ export class SchedulingApp {
         this.visualizer.renderScheduleDetails(tasks, detailsContainer);
         
         // Update logic explanation
-        this.updateLogicExplanation(settings, tasks);
+        this.updateLogicExplanation(settings, tasks, isSimulation);
     }
 
-    updateLogicExplanation(settings, tasks) {
+    updateLogicExplanation(settings, tasks, isSimulation) {
         const container = document.getElementById('logic-explanation');
         
         // Use the new explanation generator

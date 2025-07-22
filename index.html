@@ -17,26 +17,41 @@
         </header>
 
         <div class="main-grid">
-            <!-- Controls Section -->
-            <section class="controls-section">
-                <h2>Scheduling Settings</h2>
-                <div id="scheduling-controls"></div>
-            </section>
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Controls Section -->
+                <section class="controls-section">
+                    <h2>Settings</h2>
+                    <div id="scheduling-controls"></div>
+                </section>
+            </div>
 
-            <!-- Visualization Section -->
-            <section class="visualization-section">
-                <h2>Task Timeline</h2>
-                <div id="timeline-container">
-                    <canvas id="timeline-canvas"></canvas>
+            <!-- Right Column -->
+            <div class="right-column">
+                <!-- Top Row: Logic and Simulation -->
+                <div class="top-row">
+                    <!-- Summary Section -->
+                    <section class="summary-section">
+                        <h2>Current Logic</h2>
+                        <div id="logic-explanation"></div>
+                    </section>
+
+                    <!-- Simulation Section -->
+                    <section class="simulation-section">
+                        <h2>Sensor Simulation</h2>
+                        <div id="sensor-simulation-container"></div>
+                    </section>
                 </div>
-                <div id="schedule-details"></div>
-            </section>
 
-            <!-- Explanation Section -->
-            <section class="explanation-section">
-                <h2>Current Schedule Logic</h2>
-                <div id="logic-explanation"></div>
-            </section>
+                <!-- Visualization Section -->
+                <section class="visualization-section">
+                    <h2>Timeline</h2>
+                    <div id="timeline-container">
+                        <canvas id="timeline-canvas"></canvas>
+                    </div>
+                    <div id="schedule-details"></div>
+                </section>
+            </div>
         </div>
     </div>
 
