@@ -1,12 +1,15 @@
 import { SchedulingLogic } from './components/SchedulingLogicV2.js';
 import { SchedulingVisualizer } from './components/SchedulingVisualizer.js';
 import { SchedulingControls } from './components/SchedulingControlsV2.js';
+import { FeedbackModal } from './components/FeedbackModal.js';
 
 export class SchedulingApp {
     constructor() {
         this.schedulingLogic = new SchedulingLogic();
         this.visualizer = new SchedulingVisualizer();
         this.controls = new SchedulingControls(this.schedulingLogic);
+        this.feedbackModal = new FeedbackModal();
+        this.currentTasks = [];
         
         this.init();
     }
@@ -15,10 +18,24 @@ export class SchedulingApp {
         // Initialize components
         this.visualizer.init();
         this.controls.init(document.getElementById('scheduling-controls'));
+        this.feedbackModal.init();
         
         // Set up event handlers
         this.controls.setOnChange((settings, isSimulation) => {
             this.updateSchedule(settings, isSimulation);
+        });
+        
+        // Set up feedback button
+        const feedbackButton = document.getElementById('feedback-button');
+        if (feedbackButton) {
+            feedbackButton.addEventListener('click', () => {
+                this.feedbackModal.open();
+            });
+        }
+        
+        // Set up feedback submission handler
+        this.feedbackModal.setOnSubmit((description) => {
+            this.handleFeedbackSubmit(description);
         });
         
         // Initial update
@@ -36,6 +53,9 @@ export class SchedulingApp {
         setTimeout(() => {
             // Generate task series
             const tasks = this.schedulingLogic.generateTaskSeries(settings, settings.displaySettings.numberOfTasks);
+            
+            // Store current tasks for feedback export
+            this.currentTasks = tasks;
             
             // Update completed task position
             this.visualizer.setCompletedTaskPosition(settings.displaySettings.completedTaskPosition);
@@ -94,5 +114,64 @@ export class SchedulingApp {
         }
         
         container.textContent = explanation + taskSummary;
+    }
+    
+    handleFeedbackSubmit(description) {
+        // Collect all data for export
+        const feedbackData = {
+            timestamp: new Date().toISOString(),
+            userFeedback: {
+                description: description,
+                reportedAt: new Date().toISOString()
+            },
+            configuration: this.controls.currentSettings,
+            generatedTasks: this.currentTasks.map(task => ({
+                taskNumber: task.taskNumber,
+                dueDate: task.dueDate,
+                triggerType: task.triggerType,
+                details: task
+            })),
+            schedulingLogic: {
+                baseDateInfo: this.schedulingLogic.lastBaseDateInfo,
+                explanation: this.schedulingLogic.generateExplanation(this.controls.currentSettings)
+            },
+            browserInfo: {
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString(),
+                windowSize: {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                }
+            }
+        };
+        
+        // Create and download the JSON file
+        this.downloadFeedback(feedbackData);
+    }
+    
+    downloadFeedback(data) {
+        // Create blob from data
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `maintenance-feedback-${timestamp}.json`;
+        link.href = url;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Show success message
+        alert('Feedback report downloaded successfully! Please share this file with the development team.');
     }
 }

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Feedback Feature</title>
+</head>
+<body>
+    <h1>Test Feedback Feature</h1>
+    <p>Click the button below to test the feedback feature:</p>
+    <button onclick="testFeedback()">Generate Test Feedback</button>
+    
+    <script>
+        function testFeedback() {
+            const testData = {
+                timestamp: new Date().toISOString(),
+                userFeedback: {
+                    description: "This is a test feedback to verify the download functionality works correctly.",
+                    reportedAt: new Date().toISOString()
+                },
+                configuration: {
+                    isFloating: false,
+                    triggers: {
+                        calendar: true,
+                        sensor: true,
+                        isCoexisting: false
+                    },
+                    definitionStartDate: "2024-01-01",
+                    calendarConfig: {
+                        isRepeating: true,
+                        repeatEvery: 1,
+                        interval: 'month',
+                        scheduleFirstFromInterval: false
+                    },
+                    sensorConfig: {
+                        isOnce: false,
+                        triggerValue: 500,
+                        preventive: true
+                    },
+                    context: {
+                        lastCompletedTaskDate: "2024-01-15",
+                        lastSensorValue: 450,
+                        lastSensorDate: "2024-01-20",
+                        averageSensorRate: 10,
+                        lastMaintenanceValue: 0,
+                        periodChangeDate: null
+                    },
+                    displaySettings: {
+                        numberOfTasks: 20,
+                        completedTaskPosition: 3
+                    }
+                },
+                generatedTasks: [
+                    {
+                        taskNumber: 1,
+                        dueDate: "2024-02-01",
+                        triggerType: "calendar",
+                        details: { additional: "info" }
+                    },
+                    {
+                        taskNumber: 2,
+                        dueDate: "2024-02-05",
+                        triggerType: "sensor",
+                        details: { additional: "info" }
+                    }
+                ],
+                schedulingLogic: {
+                    baseDateInfo: {
+                        date: "2024-01-15",
+                        source: "Last Completed Task"
+                    },
+                    explanation: "Using calendar and sensor triggers with first-wins strategy."
+                },
+                browserInfo: {
+                    userAgent: navigator.userAgent,
+                    timestamp: new Date().toISOString(),
+                    windowSize: {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    }
+                }
+            };
+            
+            // Create and download JSON
+            const jsonString = JSON.stringify(testData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            link.download = `maintenance-feedback-${timestamp}.json`;
+            link.href = url;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            alert('Test feedback downloaded successfully!');
+        }
+    </script>
+</body>
+</html>
