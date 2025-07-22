@@ -120,38 +120,95 @@ export class SchedulingVisualizer {
     }
 
     renderScheduleDetails(tasks, container) {
+        // Calculate days until due for each task
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const tasksWithDays = tasks.map(task => {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            return { ...task, daysUntil };
+        });
+        
         const html = `
             <div class="schedule-details">
-                <h3>Scheduled Tasks</h3>
-                <div class="chart-controls">
-                    <button onclick="window.schedulingApp.visualizer.resetZoom()">Reset View</button>
-                    <span class="zoom-hint">Use mouse wheel to zoom, drag to pan</span>
+                <div class="schedule-header">
+                    <h3>Scheduled Tasks</h3>
+                    <div class="schedule-actions">
+                        <button onclick="window.schedulingApp.visualizer.resetZoom()" class="btn-secondary">Reset Timeline View</button>
+                    </div>
                 </div>
-                <div class="task-list">
-                    ${tasks.slice(0, 10).map(task => `
-                        <div class="task-item">
-                            <div class="task-header">
-                                <span class="task-number">Task #${task.taskNumber}</span>
-                                <span class="task-trigger ${task.triggerType}">${task.triggerType}</span>
-                            </div>
-                            <div class="task-dates">
-                                <div class="due-date">
-                                    <strong>Due:</strong> ${task.dueDate.toLocaleString()}
-                                </div>
-                                ${task.calendarInfo ? `
-                                    <div class="task-info">
-                                        <strong>Interval:</strong> ${task.calendarInfo.repeatEvery} ${task.calendarInfo.interval}
-                                    </div>
-                                ` : ''}
-                                ${task.sensorInfo ? `
-                                    <div class="task-info">
-                                        <strong>Trigger:</strong> ${task.sensorInfo.triggerValue} units
-                                    </div>
-                                ` : ''}
-                            </div>
+                
+                <div class="schedule-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">Total Tasks:</span>
+                        <span class="summary-value">${tasks.length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Next 30 Days:</span>
+                        <span class="summary-value">${tasksWithDays.filter(t => t.daysUntil >= 0 && t.daysUntil <= 30).length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Overdue:</span>
+                        <span class="summary-value">${tasksWithDays.filter(t => t.daysUntil < 0).length}</span>
+                    </div>
+                </div>
+                
+                <div class="task-table-container">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th width="60">#</th>
+                                <th width="90">Type</th>
+                                <th width="140">Due Date</th>
+                                <th width="100">Days Until</th>
+                                <th>Trigger Info</th>
+                                <th width="80">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tasksWithDays.slice(0, 20).map(task => `
+                                <tr class="${task.daysUntil < 0 ? 'overdue' : task.daysUntil <= 7 ? 'soon' : ''}">
+                                    <td class="task-number">${task.taskNumber}</td>
+                                    <td>
+                                        <span class="task-type ${task.triggerType}">
+                                            ${task.triggerType === 'sensor' ? '⚡' : '📅'} ${task.triggerType}
+                                        </span>
+                                    </td>
+                                    <td>${task.dueDate.toLocaleDateString()}</td>
+                                    <td class="days-until">
+                                        ${task.daysUntil < 0 
+                                            ? `<span class="overdue">${Math.abs(task.daysUntil)} days overdue</span>`
+                                            : task.daysUntil === 0 
+                                            ? '<span class="today">Today</span>'
+                                            : task.daysUntil === 1
+                                            ? '<span class="tomorrow">Tomorrow</span>'
+                                            : `${task.daysUntil} days`
+                                        }
+                                    </td>
+                                    <td class="trigger-info">
+                                        ${task.calendarInfo 
+                                            ? `Every ${task.calendarInfo.repeatEvery} ${task.calendarInfo.interval}` 
+                                            : task.sensorInfo 
+                                            ? `${task.sensorInfo.triggerValue} units`
+                                            : '-'
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="status-badge ${task.daysUntil < 0 ? 'status-overdue' : task.daysUntil <= 7 ? 'status-soon' : 'status-upcoming'}">
+                                            ${task.daysUntil < 0 ? 'Overdue' : task.daysUntil <= 7 ? 'Soon' : 'Upcoming'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${tasks.length > 20 ? `
+                        <div class="table-footer">
+                            Showing 20 of ${tasks.length} tasks
                         </div>
-                    `).join('')}
-                    ${tasks.length > 10 ? `<div class="task-item more">... and ${tasks.length - 10} more tasks</div>` : ''}
+                    ` : ''}
                 </div>
             </div>
         `;
