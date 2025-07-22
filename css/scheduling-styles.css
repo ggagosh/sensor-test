@@ -772,6 +772,53 @@ header h1 {
     margin-left: -10px;
 }
 
+/* Date input with clear button */
+.date-input-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.date-input-wrapper input[type="date"] {
+    padding-right: 30px;
+    width: 100%;
+}
+
+.date-clear-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--gray-400);
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.date-clear-btn:hover {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.date-clear-btn:active {
+    background: var(--gray-200);
+}
+
+/* Adjust full-width class for date inputs in wrappers */
+.date-input-wrapper input.full-width {
+    width: 100%;
+}
+
 /* Feedback Button and Modal Styles */
 .header-actions {
     display: flex;

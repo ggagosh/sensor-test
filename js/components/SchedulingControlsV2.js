@@ -96,7 +96,10 @@ export class SchedulingControls {
             <div class="control-group">
                 <h3>Definition Start Date</h3>
                 <div class="control-item">
-                    <input type="date" id="definition-start-date" value="${this.formatDateForInput(this.currentSettings.definitionStartDate)}">
+                    <div class="date-input-wrapper">
+                        <input type="date" id="definition-start-date" value="${this.formatDateForInput(this.currentSettings.definitionStartDate)}">
+                        <button type="button" class="date-clear-btn" data-target="definition-start-date" title="Clear date">×</button>
+                    </div>
                 </div>
             </div>
 
@@ -166,7 +169,10 @@ export class SchedulingControls {
                 </div>
                 <div class="control-item">
                     <label>Last Completed Task Date:</label>
-                    <input type="date" id="last-completed-date" value="${this.formatDateForInput(this.currentSettings.context.lastCompletedTaskDate)}">
+                    <div class="date-input-wrapper">
+                        <input type="date" id="last-completed-date" value="${this.formatDateForInput(this.currentSettings.context.lastCompletedTaskDate)}">
+                        <button type="button" class="date-clear-btn" data-target="last-completed-date" title="Clear date">×</button>
+                    </div>
                     <small>Date when the last task was completed</small>
                 </div>
                 <div class="control-item">
@@ -175,7 +181,10 @@ export class SchedulingControls {
                 </div>
                 <div class="control-item">
                     <label>Last Sensor Update:</label>
-                    <input type="date" id="last-sensor-date" value="${this.formatDateForInput(this.currentSettings.context.lastSensorDate)}">
+                    <div class="date-input-wrapper">
+                        <input type="date" id="last-sensor-date" value="${this.formatDateForInput(this.currentSettings.context.lastSensorDate)}">
+                        <button type="button" class="date-clear-btn" data-target="last-sensor-date" title="Clear date">×</button>
+                    </div>
                 </div>
                 <div class="control-item">
                     <label>Average Sensor Rate:</label>
@@ -187,7 +196,10 @@ export class SchedulingControls {
                 </div>
                 <div class="control-item">
                     <label>Equipment Period Change Date:</label>
-                    <input type="date" id="period-change-date" value="${this.formatDateForInput(this.currentSettings.context.periodChangeDate)}">
+                    <div class="date-input-wrapper">
+                        <input type="date" id="period-change-date" value="${this.formatDateForInput(this.currentSettings.context.periodChangeDate)}">
+                        <button type="button" class="date-clear-btn" data-target="period-change-date" title="Clear date">×</button>
+                    </div>
                 </div>
             </div>
 
@@ -223,7 +235,10 @@ export class SchedulingControls {
             </div>
             <div class="control-item">
                 <label>Sensor Date:</label>
-                <input type="date" id="new-sensor-date" value="${this.formatDateForInput(new Date())}" class="full-width">
+                <div class="date-input-wrapper">
+                    <input type="date" id="new-sensor-date" value="${this.formatDateForInput(new Date())}" class="full-width">
+                    <button type="button" class="date-clear-btn" data-target="new-sensor-date" title="Clear date">×</button>
+                </div>
             </div>
             <div class="control-item">
                 <label>Average Rate Override:</label>
@@ -296,6 +311,21 @@ export class SchedulingControls {
                 this.simulateSensorInput();
             }
         });
+
+        // Date clear buttons
+        const clearButtons = this.container.querySelectorAll('.date-clear-btn');
+        clearButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = btn.getAttribute('data-target');
+                const targetInput = document.getElementById(targetId);
+                if (targetInput) {
+                    targetInput.value = '';
+                    // Trigger the input event to update settings
+                    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        });
     }
 
     updateTriggerVisibility() {
@@ -316,6 +346,10 @@ export class SchedulingControls {
         const lastCompletedInput = document.getElementById('last-completed-date').value;
         const lastCompletedDate = lastCompletedInput ? new Date(lastCompletedInput) : null;
         
+        // Get definition start date
+        const definitionStartInput = document.getElementById('definition-start-date').value;
+        const definitionStartDate = definitionStartInput ? new Date(definitionStartInput) : null;
+        
         this.currentSettings = {
             isFloating: intervalType === 'floating',
             triggers: {
@@ -323,7 +357,7 @@ export class SchedulingControls {
                 sensor: document.getElementById('trigger-sensor').checked,
                 isCoexisting: document.getElementById('is-coexisting').checked
             },
-            definitionStartDate: new Date(document.getElementById('definition-start-date').value),
+            definitionStartDate: definitionStartDate,
             calendarConfig: {
                 isRepeating: document.getElementById('calendar-repeating').checked,
                 repeatEvery: parseInt(document.getElementById('calendar-repeat-value').value),
@@ -338,7 +372,8 @@ export class SchedulingControls {
             context: {
                 lastCompletedTaskDate: lastCompletedDate,
                 lastSensorValue: parseFloat(document.getElementById('last-sensor-value').value),
-                lastSensorDate: new Date(document.getElementById('last-sensor-date').value),
+                lastSensorDate: document.getElementById('last-sensor-date').value ? 
+                    new Date(document.getElementById('last-sensor-date').value) : null,
                 averageSensorRate: parseFloat(document.getElementById('average-sensor-rate').value),
                 lastMaintenanceValue: parseFloat(document.getElementById('last-maintenance-value').value) || 0,
                 periodChangeDate: document.getElementById('period-change-date').value ? 
@@ -369,19 +404,32 @@ export class SchedulingControls {
         const newAvgRateInput = document.getElementById('new-avg-rate');
         
         const newValue = parseFloat(newValueInput.value);
-        const newDate = new Date(newDateInput.value);
+        const newDateValue = newDateInput.value;
         const overrideAvgRate = newAvgRateInput.value ? parseFloat(newAvgRateInput.value) : null;
         
         if (isNaN(newValue) || newValue < 0) {
             alert('Please enter a valid sensor value');
             return;
         }
+        
+        if (!newDateValue) {
+            alert('Please enter a sensor date');
+            return;
+        }
+        
+        const newDate = new Date(newDateValue);
 
         const oldValue = this.currentSettings.context.lastSensorValue;
         const oldDate = this.currentSettings.context.lastSensorDate;
         const difference = newValue - oldValue;
-        const daysSinceLastUpdate = (newDate - oldDate) / (1000 * 60 * 60 * 24);
-        const actualRate = daysSinceLastUpdate > 0 ? difference / daysSinceLastUpdate : 0;
+        
+        let daysSinceLastUpdate = 0;
+        let actualRate = 0;
+        
+        if (oldDate) {
+            daysSinceLastUpdate = (newDate - oldDate) / (1000 * 60 * 60 * 24);
+            actualRate = daysSinceLastUpdate > 0 ? difference / daysSinceLastUpdate : 0;
+        }
 
         // Calculate new average rate
         let newAverageRate;
